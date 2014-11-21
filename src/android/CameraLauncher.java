@@ -51,6 +51,9 @@ import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
 
+// needed for the Glass's idiosyncratic way of returning captured images
+import com.google.android.glass.content.Intents;
+
 /**
  * This class launches the camera view, allows the user to take a picture, closes the camera view,
  * and returns the captured image.  When the camera view is closed, the screen displayed before
@@ -89,6 +92,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private boolean correctOrientation;     // Should the pictures orientation be corrected
     private boolean orientationCorrected;   // Has the picture's orientation been corrected
     private boolean allowEdit;              // Should we allow the user to crop the image.
+    private boolean usePreview;             // Whether to just return the preview image, which we
+                                            //  might want to do because Glass takes over ten seconds to
+                                            //  return the actual image
 
     public CallbackContext callbackContext;
     private int numPics;
@@ -128,6 +134,13 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             this.allowEdit = args.getBoolean(7);
             this.correctOrientation = args.getBoolean(8);
             this.saveToPhotoAlbum = args.getBoolean(9);
+            this.usePreview = args.getBoolean(12);
+
+            if(this.usePreview) {
+              Log.d(LOG_TAG, "Using preview image!");
+            } else {
+              Log.d(LOG_TAG, "Not using preview image!");
+            }
 
             // If the user specifies a 0 or smaller width/height
             // make it -1 so later comparisons succeed
@@ -207,9 +220,11 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
 
         // Specify file so that large image is captured and returned
-        File photo = createCaptureFile(encodingType);
-        intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, Uri.fromFile(photo));
-        this.imageUri = Uri.fromFile(photo);
+        // Haha, nope, this doesn't work on glass --Pyry
+
+        // File photo = createCaptureFile(encodingType);
+        // intent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, Uri.fromFile(photo));
+        // this.imageUri = Uri.fromFile(photo);
 
         if (this.cordova != null) {
             this.cordova.startActivityForResult((CordovaPlugin) this, intent, (CAMERA + 1) * 16 + returnType + 1);
@@ -358,6 +373,15 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
         Bitmap bitmap = null;
         Uri uri = null;
+
+        String tempUri;
+        if(this.usePreview) {
+          tempUri = intent.getStringExtra(Intents.EXTRA_THUMBNAIL_FILE_PATH);
+        } else {
+          tempUri = intent.getStringExtra(Intents.EXTRA_PICTURE_FILE_PATH);
+        }
+        Log.d(LOG_TAG, "Extra uri: " + tempUri);
+        imageUri = Uri.parse(tempUri);
 
         // If sending base64 image back
         if (destType == DATA_URL) {
